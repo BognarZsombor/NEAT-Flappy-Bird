@@ -7,8 +7,9 @@ import random
 import os
 import time
 import neat
-import visualize
+#import visualize
 import pickle
+import sys
 pygame.font.init()  # init font
 
 WIN_WIDTH = 600
@@ -124,7 +125,6 @@ class Bird:
         :return: None
         """
         return pygame.mask.from_surface(self.img)
-
 
 class Pipe():
     """
@@ -257,9 +257,10 @@ def blitRotateCenter(surf, image, topleft, angle):
 
     surf.blit(rotated_image, new_rect.topleft)
 
-def draw_window(win, birds, pipes, base, score, gen, pipe_ind):
+def draw_window(manual, win, birds, pipes, base, score, gen = 0, pipe_ind = 0):
     """
     draws the windows for the main game loop
+    :param manual: if game is played manually
     :param win: pygame window surface
     :param bird: a Bird object
     :param pipes: List of pipes
@@ -288,16 +289,17 @@ def draw_window(win, birds, pipes, base, score, gen, pipe_ind):
         bird.draw(win)
 
     # score
-    score_label = STAT_FONT.render("Score: " + str(score),1,(255,255,255))
+    score_label = STAT_FONT.render("Score: " + str(score), 1, (255,255,255))
     win.blit(score_label, (WIN_WIDTH - score_label.get_width() - 15, 10))
 
-    # generations
-    score_label = STAT_FONT.render("Gens: " + str(gen-1),1,(255,255,255))
-    win.blit(score_label, (10, 10))
+    if not manual:
+        # generations
+        score_label = STAT_FONT.render("Gens: " + str(gen-1),1,(255,255,255))
+        win.blit(score_label, (10, 10))
 
-    # alive
-    score_label = STAT_FONT.render("Alive: " + str(len(birds)),1,(255,255,255))
-    win.blit(score_label, (10, 50))
+        # alive
+        score_label = STAT_FONT.render("Alive: " + str(len(birds)),1,(255,255,255))
+        win.blit(score_label, (10, 50))
 
     pygame.display.update()
 
@@ -428,10 +430,72 @@ def run(config_file):
     print('\nBest genome:\n{!s}'.format(winner))
 
 
+def run_manual():
+    """
+    Runs the game with a real player controlling the flappy bird
+    """
+
+    global WIN
+    win = WIN
+    base = Base(FLOOR)
+    pipes = [Pipe(700)]
+    score = 0
+    clock = pygame.time.Clock()
+    bird = Bird(230,350)
+
+    run = True
+    while run:
+        clock.tick(30)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                break
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    bird.jump()
+
+        bird.move()
+        base.move()
+
+        rem = []
+        add_pipe = False
+        for pipe in pipes:
+            pipe.move()
+            # check for collision
+            if pipe.collide(bird, win):
+                run = False
+                break
+
+            if pipe.x + pipe.PIPE_TOP.get_width() < 0:
+                rem.append(pipe)
+
+            if not pipe.passed and pipe.x < bird.x:
+                pipe.passed = True
+                add_pipe = True
+
+        if add_pipe:
+            score += 1
+            pipes.append(Pipe(WIN_WIDTH))
+
+        for r in rem:
+            pipes.remove(r)
+
+        if bird.y + bird.img.get_height() - 10 >= FLOOR or bird.y < -50:
+            run = False
+
+        draw_window(True, WIN, [bird], pipes, base, score)
+
+    pygame.quit()
+    sys.exit()
+
+
 if __name__ == '__main__':
+    # Run it in manual mode if not commented out
+    run_manual()
+
     # Determine path to configuration file. This path manipulation is
     # here so that the script will run successfully regardless of the
     # current working directory.
-    local_dir = os.path.dirname(__file__)
-    config_path = os.path.join(local_dir, 'config-feedforward.txt')
+    config_path = "./config.txt"
     run(config_path)
